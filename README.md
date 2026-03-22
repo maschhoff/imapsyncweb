@@ -13,6 +13,8 @@ the IMAP migration and backup tool.
 - **Job history** with status tracking
 - **Stop running jobs** with a click
 
+![Screenshot](https://raw.githubusercontent.com/maschhoff/imapsyncweb/refs/heads/main/Screenshot.png)
+
 ## Requirements
 
 - Python 3.8+
