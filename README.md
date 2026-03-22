@@ -23,6 +23,9 @@ the IMAP migration and backup tool.
 
 ## Install imapsync
 
+**Docker**
+docker run knex666/imapsyncweb:latest
+
 **Debian/Ubuntu:**
 ```bash
 apt-get install imapsync
