@@ -86,7 +86,7 @@ def build_command(params):
         cmd += ["--search", params["search"]]
 
     # Always add non-interactive and some verbosity
-    cmd += ["--nofoldersizes", "--nofoldersizesatend"]
+    cmd += ["--nofoldersizes", "--nofoldersizesatend", "--log"]
 
     return cmd
 
