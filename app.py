@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 imapsync Web UI - A modern web interface for imapsync
-Mathias Aschhoff 2026
 """
 
 import os
@@ -85,8 +84,12 @@ def build_command(params):
     if params.get("search"):
         cmd += ["--search", params["search"]]
 
-    # Always add non-interactive and some verbosity
-    cmd += ["--nofoldersizes", "--nofoldersizesatend", "--log"]
+    # Suppress slow folder-size scans; --nolog keeps the container filesystem
+    # clean since the web UI captures all output via stdout.
+    # NOTE: imapsync auto-enables --nolog in Docker anyway, but we keep it
+    # explicit. The CGI env-var scrub in run_sync() is the real fix that
+    # prevents imapsync from entering CGI mode under gunicorn.
+    cmd += ["--nofoldersizes", "--nofoldersizesatend", "--nolog"]
 
     return cmd
 
@@ -118,12 +121,32 @@ def run_sync(job_id, params):
     job["command"] = " ".join(cmd)
 
     try:
+        # Build a clean environment for imapsync.
+        # imapsync checks for CGI-related env vars (SERVER_SOFTWARE, GATEWAY_INTERFACE,
+        # REQUEST_METHOD, HTTP_*, etc.) to decide whether it is being invoked as a CGI
+        # script. When gunicorn is running, those vars leak into child processes and
+        # trick imapsync into CGI mode -- which causes it to emit HTTP headers, switch
+        # log behaviour, run only a "justconnect" probe, and then exit.
+        # Solution: pass a clean copy of os.environ with every CGI/HTTP key stripped.
+        CGI_VARS = {
+            "GATEWAY_INTERFACE", "SERVER_SOFTWARE", "SERVER_NAME", "SERVER_PORT",
+            "SERVER_PROTOCOL", "REQUEST_METHOD", "REQUEST_URI", "PATH_INFO",
+            "PATH_TRANSLATED", "SCRIPT_NAME", "SCRIPT_FILENAME", "QUERY_STRING",
+            "REMOTE_ADDR", "REMOTE_HOST", "REMOTE_PORT", "REMOTE_USER",
+            "AUTH_TYPE", "CONTENT_TYPE", "CONTENT_LENGTH",
+        }
+        clean_env = {
+            k: v for k, v in os.environ.items()
+            if k not in CGI_VARS and not k.startswith("HTTP_")
+        }
+
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1
+            bufsize=1,
+            env=clean_env,
         )
         job["pid"] = process.pid
 
