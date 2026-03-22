@@ -89,6 +89,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-venv \
     # Misc
+    procps \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
