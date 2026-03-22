@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 imapsync Web UI - A modern web interface for imapsync
+Mathias Aschhoff 2026
 """
 
 import os
