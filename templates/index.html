@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>imapsync — IMAP Migration Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e2a;
+    --border: #252a38;
+    --border2: #2f3547;
+    --accent: #5b8af0;
+    --accent2: #3d6de0;
+    --green: #3ecf8e;
+    --amber: #f5a623;
+    --red: #ff5c5c;
+    --muted: #6b7494;
+    --text: #e8eaf2;
+    --text2: #b0b8d4;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Fraunces', serif;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(91,138,240,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(91,138,240,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Header */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,15,20,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .logo-text {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-text span {
+    color: var(--accent);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .status-badge.ok {
+    background: rgba(62,207,142,0.12);
+    color: var(--green);
+    border: 1px solid rgba(62,207,142,0.2);
+  }
+
+  .status-badge.missing {
+    background: rgba(255,92,92,0.12);
+    color: var(--red);
+    border: 1px solid rgba(255,92,92,0.2);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Main layout */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    width: fit-content;
+  }
+
+  .tab-btn {
+    padding: 8px 20px;
+    border: none;
+    background: none;
+    border-radius: 9px;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .tab-btn.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+
+  .tab-btn:hover:not(.active) {
+    color: var(--text2);
+  }
+
+  .tab-badge {
+    background: var(--accent);
+    color: white;
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Form layout */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 768px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+  }
+
+  .card-header-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .card-header-icon.source { background: rgba(91,138,240,0.15); }
+  .card-header-icon.dest { background: rgba(139,92,246,0.15); }
+  .card-header-icon.opts { background: rgba(62,207,142,0.15); }
+
+  .card-title {
+    font-family: var(--serif);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .card-subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Form fields */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="password"] {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(91,138,240,0.12);
+  }
+
+  input::placeholder { color: var(--muted); font-size: 12px; }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 10px;
+  }
+
+  /* Toggle switches */
+  .toggle-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .toggle-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    user-select: none;
+  }
+
+  .toggle-item:hover { border-color: var(--border2); }
+  .toggle-item.active { border-color: var(--accent); background: rgba(91,138,240,0.06); }
+
+  .toggle-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+  }
+
+  .toggle-item.active .toggle-label { color: var(--accent); }
+
+  .toggle-switch {
+    width: 32px;
+    height: 18px;
+    background: var(--border2);
+    border-radius: 9px;
+    position: relative;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+
+  .toggle-item.active .toggle-switch { background: var(--accent); }
+
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .toggle-item.active .toggle-switch::after { transform: translateX(14px); }
+
+  /* Options card full width */
+  .card-full {
+    grid-column: 1 / -1;
+  }
+
+  /* Command preview */
+  .cmd-preview {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    word-break: break-all;
+    line-height: 1.7;
+    min-height: 60px;
+    position: relative;
+  }
+
+  .cmd-preview .cmd-program { color: var(--accent); font-weight: 500; }
+  .cmd-preview .cmd-flag { color: var(--amber); }
+  .cmd-preview .cmd-value { color: var(--green); }
+  .cmd-preview .cmd-secret { color: var(--red); }
+
+  /* Action buttons */
+  .actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 20px 0 0;
+  }
+
+  .btn {
+    padding: 11px 24px;
+    border-radius: 9px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    box-shadow: 0 4px 12px rgba(91,138,240,0.3);
+  }
+
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(91,138,240,0.4); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border2);
+  }
+
+  .btn-secondary:hover { background: var(--border); color: var(--text); }
+
+  .btn-danger {
+    background: rgba(255,92,92,0.15);
+    color: var(--red);
+    border: 1px solid rgba(255,92,92,0.25);
+  }
+
+  .btn-danger:hover { background: rgba(255,92,92,0.25); }
+
+  /* Jobs panel */
+  .jobs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .job-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .job-card:hover { border-color: var(--border2); }
+  .job-card.selected { border-color: var(--accent); }
+
+  .job-card-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .job-status-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .job-status-icon.running { background: var(--accent); animation: pulse 1s infinite; }
+  .job-status-icon.completed { background: var(--green); }
+  .job-status-icon.failed, .job-status-icon.error { background: var(--red); }
+  .job-status-icon.stopped { background: var(--amber); }
+  .job-status-icon.queued { background: var(--muted); }
+
+  .job-info { flex: 1; min-width: 0; }
+
+  .job-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .job-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    display: flex;
+    gap: 12px;
+  }
+
+  .job-status-text {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 5px;
+  }
+
+  .job-status-text.running { color: var(--accent); background: rgba(91,138,240,0.12); }
+  .job-status-text.completed { color: var(--green); background: rgba(62,207,142,0.12); }
+  .job-status-text.failed, .job-status-text.error { color: var(--red); background: rgba(255,92,92,0.12); }
+  .job-status-text.stopped { color: var(--amber); background: rgba(245,166,35,0.12); }
+  .job-status-text.queued { color: var(--muted); background: rgba(107,116,148,0.12); }
+
+  /* Log viewer */
+  .log-viewer {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+
+  .log-toolbar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+
+  .log-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .log-body {
+    height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+    scroll-behavior: smooth;
+  }
+
+  .log-body::-webkit-scrollbar { width: 4px; }
+  .log-body::-webkit-scrollbar-track { background: transparent; }
+  .log-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .log-line {
+    display: flex;
+    gap: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+  }
+
+  .log-line:hover { background: rgba(255,255,255,0.03); }
+
+  .log-ts {
+    color: var(--muted);
+    flex-shrink: 0;
+    font-size: 10px;
+    padding-top: 2px;
+    opacity: 0.6;
+  }
+
+  .log-text { flex: 1; word-break: break-word; }
+
+  .log-line.error .log-text { color: var(--red); }
+  .log-line.warning .log-text { color: var(--amber); }
+  .log-line.transfer .log-text { color: var(--green); }
+  .log-line.folder .log-text { color: var(--accent); }
+  .log-line.skip .log-text { color: var(--muted); }
+  .log-line.info .log-text { color: var(--text2); }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .stat-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .empty-icon {
+    font-size: 40px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+  }
+
+  .empty-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+
+  .empty-desc {
+    font-size: 13px;
+  }
+
+  /* Spinner */
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Progress bar */
+  .progress-wrap {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #8b5cf6);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+
+  .progress-bar.indeterminate {
+    width: 40% !important;
+    animation: slide 1.5s ease-in-out infinite;
+  }
+
+  @keyframes slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+
+  /* Section title */
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 6px;
+    padding: 0 2px;
+  }
+
+  /* Notification toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast-item {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.2s ease;
+    max-width: 320px;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .toast-item.success { border-left: 3px solid var(--green); }
+  .toast-item.error { border-left: 3px solid var(--red); }
+  .toast-item.info { border-left: 3px solid var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">📨</div>
+    <span class="logo-text">imap<span>sync</span></span>
+  </div>
+  <div class="header-right">
+    <div class="status-badge missing" id="imapsyncStatus">
+      <div class="status-dot"></div>
+      <span>Checking...</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('sync', this)">
+      ⇄ New Sync
+    </button>
+    <button class="tab-btn" onclick="switchTab('jobs', this)">
+      📋 Jobs <span class="tab-badge" id="jobsBadge">0</span>
+    </button>
+  </div>
+
+  <!-- Sync Panel -->
+  <div class="panel active" id="panel-sync">
+    <div class="form-grid">
+
+      <!-- Source -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon source">📥</div>
+          <div>
+            <div class="card-title">Source Server</div>
+            <div class="card-subtitle">IMAP account to migrate from</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="field field-row">
+            <div class="field">
+              <label>Hostname / IP</label>
+              <input type="text" id="host1" placeholder="imap.gmail.com" oninput="updatePreview()">
+            </div>
+            <div class="field">
+              <label>Port</label>
+              <input type="number" id="port1" placeholder="993" oninput="updatePreview()">
+            </div>
+          </div>
+          <div class="field">
+            <label>Username / Email</label>
+            <input type="text" id="user1" placeholder="user@example.com" oninput="updatePreview()">
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="password1" placeholder="••••••••" oninput="updatePreview()">
+          </div>
+          <div class="toggle-group">
+            <div class="toggle-item" id="toggle-ssl1" onclick="toggleOpt('ssl1')">
+              <span class="toggle-label">SSL/TLS</span>
+              <div class="toggle-switch"></div>
+            </div>
+            <div class="toggle-item" id="toggle-tls1" onclick="toggleOpt('tls1')">
+              <span class="toggle-label">STARTTLS</span>
+              <div class="toggle-switch"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Destination -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon dest">📤</div>
+          <div>
+            <div class="card-title">Destination Server</div>
+            <div class="card-subtitle">IMAP account to migrate to</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="field field-row">
+            <div class="field">
+              <label>Hostname / IP</label>
+              <input type="text" id="host2" placeholder="imap.example.com" oninput="updatePreview()">
+            </div>
+            <div class="field">
+              <label>Port</label>
+              <input type="number" id="port2" placeholder="993" oninput="updatePreview()">
+            </div>
+          </div>
+          <div class="field">
+            <label>Username / Email</label>
+            <input type="text" id="user2" placeholder="user@newhost.com" oninput="updatePreview()">
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="password2" placeholder="••••••••" oninput="updatePreview()">
+          </div>
+          <div class="toggle-group">
+            <div class="toggle-item" id="toggle-ssl2" onclick="toggleOpt('ssl2')">
+              <span class="toggle-label">SSL/TLS</span>
+              <div class="toggle-switch"></div>
+            </div>
+            <div class="toggle-item" id="toggle-tls2" onclick="toggleOpt('tls2')">
+              <span class="toggle-label">STARTTLS</span>
+              <div class="toggle-switch"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Options -->
+      <div class="card card-full">
+        <div class="card-header">
+          <div class="card-header-icon opts">⚙️</div>
+          <div>
+            <div class="card-title">Sync Options</div>
+            <div class="card-subtitle">Advanced configuration</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="toggle-group" style="grid-template-columns: repeat(4, 1fr)">
+            <div class="toggle-item" id="toggle-dry_run" onclick="toggleOpt('dry_run')">
+              <span class="toggle-label">🧪 Dry Run</span>
+              <div class="toggle-switch"></div>
+            </div>
+            <div class="toggle-item" id="toggle-delete2" onclick="toggleOpt('delete2')">
+              <span class="toggle-label">🗑️ Delete Dest</span>
+              <div class="toggle-switch"></div>
+            </div>
+            <div class="toggle-item" id="toggle-subscribe" onclick="toggleOpt('subscribe')">
+              <span class="toggle-label">📂 Subscribe</span>
+              <div class="toggle-switch"></div>
+            </div>
+            <div class="toggle-item" id="toggle-noauthmd5" onclick="toggleOpt('noauthmd5')">
+              <span class="toggle-label">🔓 No Auth MD5</span>
+              <div class="toggle-switch"></div>
+            </div>
+          </div>
+
+          <div class="form-grid" style="margin: 0; gap: 14px;">
+            <div class="field">
+              <label>Exclude Folders (regex)</label>
+              <input type="text" id="exclude" placeholder="Trash|Spam|Junk" oninput="updatePreview()">
+            </div>
+            <div class="field">
+              <label>Include Only (regex)</label>
+              <input type="text" id="include" placeholder="INBOX|Sent" oninput="updatePreview()">
+            </div>
+            <div class="field">
+              <label>Specific Folder</label>
+              <input type="text" id="folder" placeholder="INBOX" oninput="updatePreview()">
+            </div>
+            <div class="field">
+              <label>Max Message Age (days)</label>
+              <input type="number" id="maxage" placeholder="365" oninput="updatePreview()">
+            </div>
+            <div class="field">
+              <label>Max Message Size (bytes)</label>
+              <input type="number" id="maxsize" placeholder="50000000" oninput="updatePreview()">
+            </div>
+            <div class="field">
+              <label>Search Filter (IMAP)</label>
+              <input type="text" id="search" placeholder="UNSEEN" oninput="updatePreview()">
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">Command Preview</div>
+            <div class="cmd-preview" id="cmdPreview">
+              <span class="cmd-program">imapsync</span>
+              <span style="color:var(--muted)"> — fill in the fields above</span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary" id="startBtn" onclick="startSync()">
+              <span>▶ Start Migration</span>
+            </button>
+            <button class="btn btn-secondary" onclick="resetForm()">
+              ↺ Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Jobs Panel -->
+  <div class="panel" id="panel-jobs">
+
+    <div id="jobsContainer">
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div class="empty-title">No sync jobs yet</div>
+        <div class="empty-desc">Start a migration from the New Sync tab</div>
+      </div>
+    </div>
+
+    <!-- Log viewer (shown when a job is selected) -->
+    <div id="logSection" style="display:none">
+      <div class="stats-bar" id="statsBar">
+        <div class="stat-item">
+          <div class="stat-value" id="stat-msgs">0</div>
+          <div class="stat-label">Messages</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-skip">0</div>
+          <div class="stat-label">Skipped</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-bytes">0</div>
+          <div class="stat-label">Bytes</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-errors">0</div>
+          <div class="stat-label">Errors</div>
+        </div>
+      </div>
+
+      <div class="log-viewer">
+        <div class="log-toolbar">
+          <div class="log-title">
+            <span id="logJobId">—</span>
+            <span id="logJobStatus" class="job-status-text"></span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px" onclick="clearLog()">Clear</button>
+            <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px" id="autoScrollBtn" onclick="toggleAutoScroll()">↓ Auto-scroll</button>
+            <button class="btn btn-danger" style="padding:5px 12px;font-size:12px" id="stopBtn" onclick="stopJob()">■ Stop</button>
+          </div>
+        </div>
+        <div class="log-body" id="logBody">
+          <div style="color:var(--muted);padding:20px;text-align:center;">Select a job to view its log</div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+// State
+const opts = {};
+let selectedJobId = null;
+let autoScroll = true;
+let pollInterval = null;
+let logOffset = 0;
+
+// Init
+checkImapsync();
+setInterval(refreshJobs, 3000);
+
+// --- Toggle options ---
+function toggleOpt(key) {
+  opts[key] = !opts[key];
+  const el = document.getElementById('toggle-' + key);
+  el.classList.toggle('active', opts[key]);
+  updatePreview();
+}
+
+function toggleAutoScroll() {
+  autoScroll = !autoScroll;
+  const btn = document.getElementById('autoScrollBtn');
+  btn.textContent = autoScroll ? '↓ Auto-scroll' : '↓ Paused';
+  btn.style.opacity = autoScroll ? '1' : '0.5';
+}
+
+// --- Tab switching ---
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'jobs') refreshJobs();
+}
+
+// --- Command preview ---
+function updatePreview() {
+  const parts = ['<span class="cmd-program">imapsync</span>'];
+  const f = (name, id) => {
+    const v = document.getElementById(id)?.value;
+    if (v) parts.push(`<span class="cmd-flag">${name}</span> <span class="cmd-value">${v}</span>`);
+  };
+  const sec = (name) => { parts.push(`<span class="cmd-flag">${name}</span> <span class="cmd-secret">••••••</span>`); };
+  
+  f('--host1', 'host1'); f('--port1', 'port1'); f('--user1', 'user1');
+  if (document.getElementById('password1')?.value) sec('--password1');
+  if (opts.ssl1) parts.push('<span class="cmd-flag">--ssl1</span>');
+  if (opts.tls1) parts.push('<span class="cmd-flag">--tls1</span>');
+  f('--host2', 'host2'); f('--port2', 'port2'); f('--user2', 'user2');
+  if (document.getElementById('password2')?.value) sec('--password2');
+  if (opts.ssl2) parts.push('<span class="cmd-flag">--ssl2</span>');
+  if (opts.tls2) parts.push('<span class="cmd-flag">--tls2</span>');
+  if (opts.dry_run) parts.push('<span class="cmd-flag">--dry</span>');
+  if (opts.delete2) parts.push('<span class="cmd-flag">--delete2</span>');
+  if (opts.subscribe) parts.push('<span class="cmd-flag">--subscribe</span>');
+  if (opts.noauthmd5) parts.push('<span class="cmd-flag">--noauthmd5</span>');
+  f('--exclude', 'exclude'); f('--include', 'include'); f('--folder', 'folder');
+  f('--maxsize', 'maxsize'); f('--maxage', 'maxage'); f('--search', 'search');
+  
+  document.getElementById('cmdPreview').innerHTML = parts.join(' ');
+}
+
+// --- Start sync ---
+async function startSync() {
+  const host1 = document.getElementById('host1').value.trim();
+  const user1 = document.getElementById('user1').value.trim();
+  const host2 = document.getElementById('host2').value.trim();
+  const user2 = document.getElementById('user2').value.trim();
+  
+  if (!host1 || !user1 || !host2 || !user2) {
+    toast('Please fill in both server hostnames and usernames.', 'error');
+    return;
+  }
+
+  const params = {
+    host1, user1, password1: document.getElementById('password1').value,
+    port1: document.getElementById('port1').value,
+    host2, user2, password2: document.getElementById('password2').value,
+    port2: document.getElementById('port2').value,
+    exclude: document.getElementById('exclude').value,
+    include: document.getElementById('include').value,
+    folder: document.getElementById('folder').value,
+    maxage: document.getElementById('maxage').value,
+    maxsize: document.getElementById('maxsize').value,
+    search: document.getElementById('search').value,
+  };
+  
+  for (const [k, v] of Object.entries(opts)) {
+    params[k] = v ? 'true' : 'false';
+  }
+
+  const btn = document.getElementById('startBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Starting...';
+
+  try {
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(params)
+    });
+    const data = await res.json();
+    toast(`Job ${data.job_id} started!`, 'success');
+    switchTab('jobs', document.querySelectorAll('.tab-btn')[1]);
+    setTimeout(() => selectJob(data.job_id), 500);
+  } catch(e) {
+    toast('Failed to start sync: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ Start Migration';
+  }
+}
+
+// --- Jobs list ---
+async function refreshJobs() {
+  try {
+    const res = await fetch('/api/jobs');
+    const jobs = await res.json();
+    renderJobs(jobs);
+    document.getElementById('jobsBadge').textContent = jobs.length;
+    if (selectedJobId) pollJob();
+  } catch(e) {}
+}
+
+function renderJobs(jobs) {
+  const container = document.getElementById('jobsContainer');
+  if (!jobs.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📭</div>
+      <div class="empty-title">No sync jobs yet</div>
+      <div class="empty-desc">Start a migration from the New Sync tab</div>
+    </div>`;
+    return;
+  }
+  container.innerHTML = `<div class="jobs-list">${jobs.map(j => `
+    <div class="job-card ${j.id === selectedJobId ? 'selected' : ''}" onclick="selectJob('${j.id}')">
+      <div class="job-card-header">
+        <div class="job-status-icon ${j.status}"></div>
+        <div class="job-info">
+          <div class="job-title">${j.params?.user1 || '?'} → ${j.params?.host2 || '?'}</div>
+          <div class="job-meta">
+            <span>#${j.id}</span>
+            <span>${formatTime(j.created_at)}</span>
+            ${j.params?.host1 ? `<span>${j.params.host1}</span>` : ''}
+          </div>
+        </div>
+        <span class="job-status-text ${j.status}">${j.status}</span>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function formatTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleTimeString();
+}
+
+// --- Select job ---
+function selectJob(jobId) {
+  selectedJobId = jobId;
+  logOffset = 0;
+  document.getElementById('logBody').innerHTML = '';
+  document.getElementById('logSection').style.display = 'block';
+  document.getElementById('logJobId').textContent = `Job #${jobId}`;
+  clearInterval(pollInterval);
+  pollInterval = setInterval(pollJob, 800);
+  pollJob();
+  refreshJobs();
+}
+
+async function pollJob() {
+  if (!selectedJobId) return;
+  try {
+    const res = await fetch(`/api/jobs/${selectedJobId}?since=${logOffset}`);
+    const data = await res.json();
+    
+    // Update status
+    const statusEl = document.getElementById('logJobStatus');
+    statusEl.textContent = data.status;
+    statusEl.className = `job-status-text ${data.status}`;
+    
+    // Update stats
+    if (data.stats) {
+      document.getElementById('stat-msgs').textContent = data.stats.messages_transferred || 0;
+      document.getElementById('stat-skip').textContent = data.stats.messages_skipped || 0;
+      document.getElementById('stat-bytes').textContent = formatBytes(data.stats.bytes_transferred || 0);
+      document.getElementById('stat-errors').textContent = data.stats.errors || 0;
+    }
+    
+    // Append log lines
+    if (data.output && data.output.length > 0) {
+      const body = document.getElementById('logBody');
+      data.output.forEach(line => {
+        const div = document.createElement('div');
+        div.className = `log-line ${line.type}`;
+        const ts = new Date(line.ts).toLocaleTimeString('en', {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-text">${escapeHtml(line.text)}</span>`;
+        body.appendChild(div);
+      });
+      logOffset += data.output.length;
+      if (autoScroll) body.scrollTop = body.scrollHeight;
+    }
+    
+    // Progress
+    const pb = document.getElementById('progressBar');
+    if (data.status === 'running') {
+      pb.classList.add('indeterminate');
+    } else {
+      pb.classList.remove('indeterminate');
+      pb.style.width = data.status === 'completed' ? '100%' : '0%';
+    }
+    
+    // Stop polling if done
+    if (['completed', 'failed', 'error', 'stopped'].includes(data.status)) {
+      clearInterval(pollInterval);
+      document.getElementById('stopBtn').disabled = true;
+    } else {
+      document.getElementById('stopBtn').disabled = false;
+    }
+  } catch(e) {}
+}
+
+async function stopJob() {
+  if (!selectedJobId) return;
+  await fetch(`/api/jobs/${selectedJobId}/stop`, {method: 'POST'});
+  toast('Stop signal sent.', 'info');
+}
+
+function clearLog() {
+  document.getElementById('logBody').innerHTML = '';
+}
+
+// --- imapsync check ---
+async function checkImapsync() {
+  try {
+    const res = await fetch('/api/check');
+    const data = await res.json();
+    const el = document.getElementById('imapsyncStatus');
+    if (data.available) {
+      el.className = 'status-badge ok';
+      el.innerHTML = `<div class="status-dot"></div><span>imapsync ready</span>`;
+      el.title = data.version || '';
+    } else {
+      el.className = 'status-badge missing';
+      el.innerHTML = `<div class="status-dot"></div><span>imapsync not found</span>`;
+    }
+  } catch(e) {}
+}
+
+// --- Helpers ---
+function formatBytes(b) {
+  if (b >= 1e9) return (b/1e9).toFixed(1)+'G';
+  if (b >= 1e6) return (b/1e6).toFixed(1)+'M';
+  if (b >= 1e3) return (b/1e3).toFixed(1)+'K';
+  return b+'B';
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function resetForm() {
+  ['host1','port1','user1','password1','host2','port2','user2','password2',
+   'exclude','include','folder','maxage','maxsize','search'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  Object.keys(opts).forEach(k => {
+    opts[k] = false;
+    const el = document.getElementById('toggle-' + k);
+    if (el) el.classList.remove('active');
+  });
+  updatePreview();
+  toast('Form cleared.', 'info');
+}
+
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  const icons = {success: '✓', error: '✕', info: 'ℹ'};
+  el.innerHTML = `<span>${icons[type] || 'ℹ'}</span><span>${msg}</span>`;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+</script>
+</body>
+</html>
